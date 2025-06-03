@@ -1,6 +1,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-// Sensor header
+#include "bmp180.h"
 #include "i2c.h"
 #include "driver/gpio.h"
 
@@ -25,11 +25,11 @@ void app_main() {
     }
 }
 
-// Sensor definition
+static bmp180_t sensor;
 static int fail = 0;
 static int fails = 0;
 
-extern void setup() {
+void setup() {
     if(gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT) != ESP_OK) {
         printf("GPIO PIN %d failed to turn to direction %d\n", LED_PIN, GPIO_MODE_OUTPUT);
     } else {
@@ -44,12 +44,17 @@ extern void setup() {
     // Initialize I2C
     i2c_master_init();
 
-    // Sensor initialisation
+    // Create BMP180 sensor instance
+    2c_lowlevel_config config;
+    config.port = I2C_NUM_0;
+    config.pin_sda = GPIO_NUM_21;
+    config.pin_scl = GPIO_NUM_22;
+    &sensor = bmp180_init(&config, DEVICE_I2C_ADDRESS, BMP180_MODE_HIGH_RESOLUTION);
 }
 
 static int on = 0;
 
-extern void loop() {
+void loop() {
     // Delay by 1 second (1000 ms)
     vTaskDelay(pdMS_TO_TICKS(1000));
     if(on == 0) {
@@ -60,6 +65,14 @@ extern void loop() {
         gpio_set_level(LED_PIN, 1);
     }
     if(fail == 1 || fails > 3) return;
-    
-    // Fetch data from sensor
+
+    float temperature;
+    uint32_t pressure; 
+    if(bmp180_measure(ctx, &temperature, &pressure)) {
+        printf("Temperature: %.2f Celsius, Pressure: %u hPA", temperature, pressure);
+    } else {
+        printf("Failed to fetch data from BMP180 sensor")
+        ++fails;
+        return;
+    }
 }
